@@ -1,0 +1,194 @@
+#!/bin/bash
+
+# Docker machine Driver
+# virtualbox|xhyve
+DOCKER_MACHINE_DRIVER="xhyve"
+
+log() {
+  echo "[$(date +'%d/%m/%y %X')] $1"
+}
+
+
+splash() {
+  clear
+  echo "                                                                                                    "
+  echo "                                              oyssssssyo                                            "
+  echo "                                              oyssssssyo                                            "
+  echo "                                              oyssssssyo                                            "
+  echo "                               '''''''''''''''oyssssssyo                                            "
+  echo "                              .hyyyyyyyhsssyysyyyyyyyyho                  '/s/'                     "
+  echo "                              -hsyyyyysysssssssyyyyyyyyo                  oyosy/                    "
+  echo "                              -hsyyyyysysssssssysyyyyyyo                 -ho+++ss'                  "
+  echo "                       .......:hsssssssyossososyssssssys.......'         /y+++++ss                  "
+  echo "                      'hyyyyyyyhssssssshyyyyyyyyssssssyyyyyyyyh:         :h+++++ohossssso+:.        "
+  echo "                      'hyyyyyyyhssssssohyyyyyysyssssssysyyyyyyy/         'ys++++osooooooosys'       "
+  echo "                      'hyyyyyyshssssssohyyyyyyyyssssssyssyyyyyh/          -ys++oooosooosyy/'        "
+  echo "                ......-hysssssshssssssohssysssyysssssoyyssysyyh+....--:/+sysooosssssyyyo:'          "
+  echo "                syysssssssssssssssssssssssssssssssssssssssssssssssssssoo+++ooosh::--.'              "
+  echo "          '.    yyooo++++++++++++++++++++o+++++++++++++oo+++++++++++++++ooooosh:      .             "
+  echo "        '-ohs+:-sysssssyhysooo++++ooossyhhyssoo+++ooosyhhyssooo++++ooooyhhyssh/...-/oyy/.           "
+  echo "      .-::::::::ohyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyhy::::::::::::-.'        "
+  echo "                .hyyyssssssssssssssssssssssssssssssssssssssssssssssyyyyyyyhs'                       "
+  echo "                 /hyyysssssssssssssso++:ssssssssssssssssssssssssyyyyyyyyyy:                         "
+  echo "                  +hyyyyssssssssssss+oy+osssssssssssssssssssyyyyyyyyyyyy+'                          "
+  echo "                   :hyyyyyyyyyyyyysyssossssssssssssssssssyyyyyyyyyyyyy+'                            "
+  echo "                    'oy/::::::-..'':sssssssssssssssyyyyyyyyyyyyyyyys:'                              "
+  echo "                      .os/--.----...:ossssssyyyyyyyyyyyyyyyyyyyyo:'                                 "
+  echo "                        '/oo+:--------:osysyyyyyyyyyyyyyyyyyo/-'                                    "
+  echo "                           '-/ooo+//::--:/osyyyyyyyyyyso/:.                                         "
+  echo "                                '.-://+++++++///:-.''                                               "
+  echo "                                                                                                    "
+  echo ""
+  echo ""
+  echo ""
+}
+
+clean_docker_env() {
+	# Clean Docker client environment
+	log "--- Cleaning Docker client environment ..."
+	eval $(docker-machine env -u)
+} 
+
+# params hostname, default 'node-1'
+function get_manager_token() {
+  hostname=${1:-node-1}
+  echo "$(docker-machine ssh ${hostname} docker swarm join-token -q manager)"
+}
+
+# params hostname, default 'node-1'
+get_worker_token() {
+  hostname=${1:-node-1}
+  echo "$(docker-machine ssh ${hostname} docker swarm join-token -q worker)"
+}
+
+# Adds the ip addresses of the docker-machines to your local "hosts" file.
+# params hostname
+# macos: dscacheutil -q host -a name ${hostname}
+update_docker_host(){
+	hostname=${1}
+	# clear existing docker.local entry from /etc/hosts
+	sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
+	# get ip of running machine
+	ip="$(docker-machine ip $hostname)"
+	# update /etc/hosts with docker machine ip
+	sudo /bin/bash -c "echo \"${ip}	$hostname.local\" >> /etc/hosts"
+	sudo /bin/bash -c "echo \"${ip}	swarm.local\" >> /etc/hosts"
+}
+
+build_swarm_local_dns() {
+	sudo sed -i "/swarm.local$/d" /etc/hosts
+	for n in {1..6} ; do
+		hostname="node-${n}"
+		sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
+		update_docker_host ${hostname}
+	done
+}
+
+
+create_machine() {
+  hostname=${1}
+  docker-machine create -d ${DOCKER_MACHINE_DRIVER} ${hostname}
+  docker-machine ssh ${hostname} docker node update --label-add node.hostname=${hostname} ${hostname}
+  echo $(docker-machine ip ${hostname})
+}
+
+
+create_swarm_cluster() {
+	
+	log "--- Creating nodes ..."
+	for n in {1..6} ; do
+		create_machine node-${n}
+	done
+
+	log "--- Update local /etc/host ..."
+	build_swarm_local_dns
+
+	# Get IP from leader node
+	leader_name='node-1'
+	leader_ip=$(docker-machine ip ${leader_name})
+
+	log "--- Initializing Swarm mode ..."
+	docker-machine ssh ${leader_name} docker swarm init --listen-addr ${leader_ip} --advertise-addr ${leader_ip}
+
+	# Swarm tokens
+	manager_token=$(get_manager_token ${leader_name})
+	worker_token=$(get_worker_token ${leader_name})
+
+	log "--- Joining manager modes ..."
+	for n in {2..3} ; do
+		name="node-${n}"
+		ip=$(docker-machine ip ${name})
+		docker swarm join --token $manager_token $leader_ip:2377
+		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${manager_token} ${leader_ip}:2377
+	done
+
+	log "--- Joining worker modes ..."
+	for n in {4..6} ; do
+		name="node-${n}"
+		ip=$(docker-machine ip ${name})
+		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${worker_token} ${leader_ip}:2377
+		docker-machine ssh ${name} docker node update --label-add node.hostname=${name} ${name}
+	done
+	
+	log "------------------------------------"
+	log "To connect to your cluster..."
+	log "eval $(docker-machine env ${leader_name})"
+}
+
+
+remove_swarm_cluster() {
+	clean_docker_env
+	log "--- Removing nodes ..."
+	for n in {1..6} ; do
+		docker-machine rm node-${n} --force
+	done
+}
+
+
+start() {
+	log "--- Starting nodes ..."
+	for n in {1..6} ; do
+		docker-machine start node-${n}
+	done
+	clean_docker_env
+}
+
+stop() {
+	log "--- Stoping nodes ..."
+	for n in {1..6} ; do
+		docker-machine stop node-${n}
+	done
+	clean_docker_env
+}
+
+find_leader() {
+	echo $(docker node ls --filter "role=manager" --format "{{.Hostname}}:{{.ManagerStatus}}" | sed -n -e "s/\(.*\):Leader/\1/gp")
+}
+
+usage()
+{
+  echo "Usage $0:"
+  echo "--create : create docker swarm cluster"
+  echo "--remove : remove docker swarm cluster"
+  echo "--start : start docker swarm cluster"
+  echo "--stop : stop docker swarm cluster"
+  echo "--leader: print hostname of swarm manager leader"
+  echo "--help : this help"
+  exit 0
+}
+
+splash
+
+# read the options
+case "$1" in
+	--create)  create_swarm_cluster;;
+	--remove)  remove_swarm_cluster;;
+	--start)  start;;
+	--stop)  stop;;
+	--leader) find_leader;;
+	-h|--help)  usage;;
+	*)  usage; exit 1;;
+esac
+
+
+exit 0
