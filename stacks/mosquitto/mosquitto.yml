@@ -1,0 +1,23 @@
+version: '3.4'
+services:
+  mqtt:
+    image: eclipse-mosquitto:latest
+    ports:
+      - target: 1883
+        published: 1883
+        protocol: tcp
+        mode: ingress
+      - target: 9883
+        published: 9883
+        protocol: tcp
+        mode: ingress
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == worker
+    volumes:
+      - ${PWD}/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ${PWD}/data:/mosquitto/data:rw
+      - ${PWD}/log:/mosquitto/log:rw
