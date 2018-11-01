@@ -86,11 +86,13 @@ docker stack deploy -c stacks/consul/consul.yml consul
 docker stack services consul
 ```
 
+Or simply do `./stacks/consul/install.sh`
+
 consul ui : http://node-1.local:8500/ui
 consul api: http://node-1.local:8500/v1/
 
 ```sh
-dig @$(docker-machine ip consul) http-ip.service.consul
+dig @$(docker-machine ip node-1) http-ip.service.consul
 ```
 
 Note on service Registration/Discovery:
