@@ -22,6 +22,7 @@ Clone this repository and execute `./bin/swarm`.
 
 ```sh
 Usage ./bin/swarm:
+    --config: show cluster node configuration
     --create : create docker swarm cluster
     --remove : remove docker swarm cluster
     --start : start docker swarm cluster
@@ -32,6 +33,13 @@ Usage ./bin/swarm:
 
 This will build 6 docker machine using xhyve (or virtualbox is you set DOCKER_MACHINE_DRIVER).
 Three nodes will be created as managers and an additional three joined as workers.
+
+You could override #nodes by using environment variable:
+
+```sh
+    export MANAGER_COUNT=1
+    export WORKER_COUNT=3
+```
 
 ## install-registry
 

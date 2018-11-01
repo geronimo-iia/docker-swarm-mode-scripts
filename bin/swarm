@@ -4,10 +4,16 @@
 # virtualbox|xhyve
 DOCKER_MACHINE_DRIVER="xhyve"
 
+MANAGER_COUNT=${MANAGER_COUNT:-3}
+WORKER_COUNT=${WORKER_COUNT:-3}
+
+# Compute Node count and worker node index
+(( NODE_COUNT=${MANAGER_COUNT} + ${WORKER_COUNT} ))
+(( WORKER_NODE_INDEX = ${MANAGER_COUNT} + 1 ))
+
 log() {
   echo "[$(date +'%d/%m/%y %X')] $1"
 }
-
 
 splash() {
   clear
@@ -43,6 +49,13 @@ splash() {
   echo ""
 }
 
+show_config() {
+	echo "Swarm Cluster Configuration"
+	echo " ${MANAGER_COUNT} #manager"
+	echo " ${WORKER_COUNT} #worker"
+	echo " ${NODE_COUNT} #node"
+}
+
 clean_docker_env() {
 	# Clean Docker client environment
 	log "--- Cleaning Docker client environment ..."
@@ -50,7 +63,7 @@ clean_docker_env() {
 } 
 
 # params hostname, default 'node-1'
-function get_manager_token() {
+get_manager_token() {
   hostname=${1:-node-1}
   echo "$(docker-machine ssh ${hostname} docker swarm join-token -q manager)"
 }
@@ -64,7 +77,7 @@ get_worker_token() {
 # Adds the ip addresses of the docker-machines to your local "hosts" file.
 # params hostname
 # macos: dscacheutil -q host -a name ${hostname}
-update_docker_host(){
+update_docker_host() {
 	hostname=${1}
 	# clear existing docker.local entry from /etc/hosts
 	sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
@@ -77,13 +90,12 @@ update_docker_host(){
 
 build_swarm_local_dns() {
 	sudo sed -i "/swarm.local$/d" /etc/hosts
-	for n in {1..6} ; do
+	for n in {1..${NODE_COUNT}} ; do
 		hostname="node-${n}"
 		sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
 		update_docker_host ${hostname}
 	done
 }
-
 
 create_machine() {
   hostname=${1}
@@ -92,11 +104,10 @@ create_machine() {
   echo $(docker-machine ip ${hostname})
 }
 
-
 create_swarm_cluster() {
 	
 	log "--- Creating nodes ..."
-	for n in {1..6} ; do
+	for n in {1..${NODE_COUNT}} ; do
 		create_machine node-${n}
 	done
 
@@ -114,16 +125,18 @@ create_swarm_cluster() {
 	manager_token=$(get_manager_token ${leader_name})
 	worker_token=$(get_worker_token ${leader_name})
 
-	log "--- Joining manager modes ..."
-	for n in {2..3} ; do
-		name="node-${n}"
-		ip=$(docker-machine ip ${name})
-		docker swarm join --token $manager_token $leader_ip:2377
-		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${manager_token} ${leader_ip}:2377
-	done
+	if [[ ${MANAGER_COUNT} > 1 ]]; then
+		log "--- Joining manager modes ..."
+		for n in {2..${MANAGER_COUNT}} ; do
+			name="node-${n}"
+			ip=$(docker-machine ip ${name})
+			docker swarm join --token $manager_token $leader_ip:2377
+			docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${manager_token} ${leader_ip}:2377
+		done
+	fi
 
 	log "--- Joining worker modes ..."
-	for n in {4..6} ; do
+	for n in {${WORKER_NODE_INDEX}..${NODE_COUNT}} ; do
 		name="node-${n}"
 		ip=$(docker-machine ip ${name})
 		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${worker_token} ${leader_ip}:2377
@@ -135,19 +148,17 @@ create_swarm_cluster() {
 	log "eval $(docker-machine env ${leader_name})"
 }
 
-
 remove_swarm_cluster() {
 	clean_docker_env
 	log "--- Removing nodes ..."
-	for n in {1..6} ; do
+	for n in {1..${NODE_COUNT}} ; do
 		docker-machine rm node-${n} --force
 	done
 }
 
-
 start() {
 	log "--- Starting nodes ..."
-	for n in {1..6} ; do
+	for n in {1..${NODE_COUNT}} ; do
 		docker-machine start node-${n}
 	done
 	clean_docker_env
@@ -155,7 +166,7 @@ start() {
 
 stop() {
 	log "--- Stoping nodes ..."
-	for n in {1..6} ; do
+	for n in {1..${NODE_COUNT}} ; do
 		docker-machine stop node-${n}
 	done
 	clean_docker_env
@@ -168,6 +179,7 @@ find_leader() {
 usage()
 {
   echo "Usage $0:"
+  echo "--config : show cluster node configuration"
   echo "--create : create docker swarm cluster"
   echo "--remove : remove docker swarm cluster"
   echo "--start : start docker swarm cluster"
@@ -181,11 +193,12 @@ splash
 
 # read the options
 case "$1" in
-	--create)  create_swarm_cluster;;
-	--remove)  remove_swarm_cluster;;
-	--start)  start;;
-	--stop)  stop;;
-	--leader) find_leader;;
+	--config)   show_config;;
+	--create)   create_swarm_cluster;;
+	--remove)   remove_swarm_cluster;;
+	--start)    start;;
+	--stop)     stop;;
+	--leader)   find_leader;;
 	-h|--help)  usage;;
 	*)  usage; exit 1;;
 esac
