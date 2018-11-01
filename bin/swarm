@@ -11,6 +11,9 @@ WORKER_COUNT=${WORKER_COUNT:-3}
 (( NODE_COUNT=${MANAGER_COUNT} + ${WORKER_COUNT} ))
 (( WORKER_NODE_INDEX = ${MANAGER_COUNT} + 1 ))
 
+# Certificats directory used for docker registry
+CERTIFICATS_DIR=$(pwd)/certs
+
 log() {
   echo "[$(date +'%d/%m/%y %X')] $1"
 }
@@ -176,6 +179,37 @@ find_leader() {
 	echo $(docker node ls --filter "role=manager" --format "{{.Hostname}}:{{.ManagerStatus}}" | sed -n -e "s/\(.*\):Leader/\1/gp")
 }
 
+
+install_registry() {
+	manager_ip=$(docker-machine ip manager-1)
+
+	if [ ! -d ${CERTIFICATS_DIR} ]; then
+		log "create new certificats in ${CERTIFICATS_DIR}"
+		mkdir -p ${CERTIFICATS_DIR}
+		openssl req -newkey rsa:4096 -nodes -sha256 -keyout ${CERTIFICATS_DIR}/registry.key -x509 -days 365 -out ${CERTIFICATS_DIR}/registry.crt -subj "/C=US/ST=Illinois/L=Chicago/O=create-swarm/OU=script/CN=registry.swarm"
+	fi
+
+	log "adding certificats to swarn nodes"
+	for h in `manager-{1..${MANAGER_COUNT}} worker-{1..${WORKER_COUNT}}`; do
+		docker-machine ssh $h sudo mkdir -p /etc/docker/certs.d/registry.swarm:5000/
+		docker-machine scp ${CERTIFICATS_DIR}/registry.crt $h:registry.crt
+		docker-machine ssh $h sudo mv registry.crt /etc/docker/certs.d/registry.swarm:5000/ca.crt
+		docker-machine ssh $h "sudo sh -c \"echo ${manager_ip} registry.swarm >> /etc/hosts\""
+	done
+
+	log "create registry to leader"
+	docker-machine ssh manager-1 sudo mkdir -p /etc/registry
+	docker-machine scp -r ${CERTIFICATS_DIR} manager-1:.
+	docker-machine ssh manager-1 sudo mv certs /etc/registry/.
+	docker-machine ssh manager-1 docker run -d -p 5000:5000 -v registry:/var/lib/registry -v /etc/registry/certs:/certs -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/registry.crt -e REGISTRY_HTTP_TLS_KEY=/certs/registry.key registry
+
+	echo For your local machine to talk to the embedded registry you will need to add the keys.
+	echo On a mac, just run the following...
+	echo \$    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${CERTIFICATS_DIR}/registry.crt
+	echo \$    "sudo sh -c echo ${manager_ip} registry.swarm >> /etc/hosts"
+	echo Then restart docker for mac for the change to take effect.
+}
+
 usage()
 {
   echo "Usage $0:"
@@ -185,6 +219,7 @@ usage()
   echo "--start : start docker swarm cluster"
   echo "--stop : stop docker swarm cluster"
   echo "--leader: print hostname of swarm manager leader"
+  echo "--install_registry: install docker registry"
   echo "--help : this help"
   exit 0
 }
@@ -199,6 +234,7 @@ case "$1" in
 	--start)    start;;
 	--stop)     stop;;
 	--leader)   find_leader;;
+	--install_registry) install_registry;;
 	-h|--help)  usage;;
 	*)  usage; exit 1;;
 esac

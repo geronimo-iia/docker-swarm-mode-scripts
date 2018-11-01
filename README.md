@@ -28,7 +28,13 @@ Usage ./bin/swarm:
     --start : start docker swarm cluster
     --stop : stop docker swarm cluster
     --leader: print hostname of swarm manager leader
+    --install_registry: install docker registry
     --help : this help
+```
+
+```sh
+    ./bin/swarm --create
+    ./bin/swarm --start
 ```
 
 This will build 6 docker machine using xhyve (or virtualbox is you set DOCKER_MACHINE_DRIVER).
@@ -53,7 +59,9 @@ Instructions for connecting from your local machine are provided at the end of
 the script. Essentially this includes adding the ca.crt to your system keystore
 and making an /etc/hosts entry.
 
-Script location: `./bin/install-registry`
+```sh
+    ./bin/swarm --install_registry
+```
 
 ## Stacks
 
