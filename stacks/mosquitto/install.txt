@@ -1,0 +1,23 @@
+# MQTT
+
+viewer: http://www.mqttfx.org/
+
+
+server:
+brew install mosquitto
+
+start:
+brew services start mosquitto
+
+
+
+# Other
+
+Mqtt sever: https://github.com/mcollina/mosca
+Mqtt client: https://github.com/mqttjs/MQTT.js
+
+https://github.com/oauthjs/node-oauth2-server
+
+https://github.com/eclipse/ponte
+
+https://github.com/lelylan/lelylan

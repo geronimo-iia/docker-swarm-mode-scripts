@@ -22,16 +22,30 @@ Clone this repository and execute `./bin/swarm`.
 
 ```sh
 Usage ./bin/swarm:
+    --config: show cluster node configuration
     --create : create docker swarm cluster
     --remove : remove docker swarm cluster
     --start : start docker swarm cluster
     --stop : stop docker swarm cluster
     --leader: print hostname of swarm manager leader
+    --install_registry: install docker registry
     --help : this help
+```
+
+```sh
+    ./bin/swarm --create
+    ./bin/swarm --start
 ```
 
 This will build 6 docker machine using xhyve (or virtualbox is you set DOCKER_MACHINE_DRIVER).
 Three nodes will be created as managers and an additional three joined as workers.
+
+You could override #nodes by using environment variable:
+
+```sh
+    export MANAGER_COUNT=1
+    export WORKER_COUNT=3
+```
 
 ## install-registry
 
@@ -45,7 +59,9 @@ Instructions for connecting from your local machine are provided at the end of
 the script. Essentially this includes adding the ca.crt to your system keystore
 and making an /etc/hosts entry.
 
-Script location: `./bin/install-registry`
+```sh
+    ./bin/swarm --install_registry
+```
 
 ## Stacks
 
@@ -70,11 +86,13 @@ docker stack deploy -c stacks/consul/consul.yml consul
 docker stack services consul
 ```
 
+Or simply do `./stacks/consul/install.sh`
+
 consul ui : http://node-1.local:8500/ui
 consul api: http://node-1.local:8500/v1/
 
 ```sh
-dig @$(docker-machine ip consul) http-ip.service.consul
+dig @$(docker-machine ip node-1) http-ip.service.consul
 ```
 
 Note on service Registration/Discovery:
