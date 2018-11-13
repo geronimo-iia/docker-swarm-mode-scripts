@@ -1,0 +1,5 @@
+Start instalation of https://prometheus.io/
+
+TODO:
+check this project https://github.com/stefanprodan/swarmprom
+https://medium.com/@soumyadipde/monitoring-in-docker-stacks-its-that-easy-with-prometheus-5d71c1042443
