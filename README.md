@@ -4,6 +4,8 @@ These scripts use docker-machine from the [Docker for Mac][1] distribution to
 create a docker swarm-mode cluster and clean it up when you're done.
 Initial article was wrote by [Manuel Morejón][2].
 
+You could use it on nix plateform by changing DOCKER_MACHINE_DRIVER variable.
+
 ## prerequisites
 
 You will need Docker for Mac 1.12 or 17.x CE (or better) for this to work.
@@ -70,6 +72,20 @@ Under `./stacks` you could find several starter stacks:
 - consul
 - visualizer
 - dockerdloud-hello-world
+
+In progress:
+
+- dgraph
+- monitoring (plain to use prometheus, etc...)
+- traefik as load balancer
+
+The wish list:
+
+- redis cluster
+- elastic cluster
+- faas
+- postgresql server
+- emqtt broker
 
 ### consul
 
