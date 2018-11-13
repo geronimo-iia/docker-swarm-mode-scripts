@@ -1,0 +1,21 @@
+From https://docs.dgraph.io/deploy
+
+This is a work in progess.
+
+docker stack deploy -c graph.yml dgraph
+docker stack services dgraph
+
+
+use -p & -w to configure data directories.
+
+-p p1 -w w1
+
+
+On its HTTP port, a Dgraph Alpha exposes a number of admin endpoints.
+
+https://docs.dgraph.io/deploy#more-about-dgraph
+
+/health returns HTTP status code 200 and an “OK” message if the worker is running, HTTP 503 otherwise.
+/admin/shutdown initiates a proper shutdown of the Alpha.
+/admin/export initiates a data export.
+By default the Alpha listens on localhost for admin actions (the loopback address only accessible from the same machine). The --bindall=true option binds to 0.0.0.0 and thus allows external connections.
