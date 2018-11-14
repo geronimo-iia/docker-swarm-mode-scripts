@@ -54,7 +54,29 @@ You could override #nodes by using environment variable:
 ```sh
     export MANAGER_COUNT=1
     export WORKER_COUNT=3
-    export DOCKER_MACHINE_DRIVER="virtualbox" # "xhyve per default"
+    export DOCKER_MACHINE_DRIVER="xhyve"
+```
+
+or better, into a '.swarm' file on your current path.
+
+```sh
+    echo "export MANAGER_COUNT=1" > '.swarm'
+    echo "export WORKER_COUNT=3" >> '.swarm'
+    echo "export DOCKER_MACHINE_DRIVER=\"xhyve\"" >> '.swarm'
+
+    cat .swarm
+    export MANAGER_COUNT=1
+    export WORKER_COUNT=3
+    export DOCKER_MACHINE_DRIVER="xhyve"
+
+    ./bin/swarm --config
+
+    Swarm Cluster Configuration
+    1 #manager
+    3 #worker
+    4 #node
+    Driver: xhyve
+
 ```
 
 ## install-registry

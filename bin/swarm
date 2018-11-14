@@ -1,10 +1,20 @@
 #!/bin/bash
 set -e
-# Docker machine Driver
-# virtualbox|xhyve
+
+# load local swarm definition
+LOCAL_CONF_FILE="$(pwd)/.swarm"
+if [ -e ${LOCAL_CONF_FILE} ]; then
+	source ${LOCAL_CONF_FILE}
+fi
+
+# Docker machine Driver (virtualbox|xhyve, ...)
 DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER:-"xhyve"}
 DOCKER_MACHINE_OPTS=${DOCKER_MACHINE_OPTS:-""}
+
+# Number of manager
 MANAGER_COUNT=${MANAGER_COUNT:-3}
+
+# Number of worker
 WORKER_COUNT=${WORKER_COUNT:-3}
 
 # Compute Node count and worker node index
