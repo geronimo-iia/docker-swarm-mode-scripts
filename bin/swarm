@@ -93,7 +93,7 @@ update_docker_host() {
 
 build_swarm_local_dns() {
 	sudo sed -i "/swarm.local$/d" /etc/hosts
-	for n in {1..${NODE_COUNT}} ; do
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
 		hostname="node-${n}"
 		sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
 		update_docker_host ${hostname}
@@ -110,7 +110,7 @@ create_machine() {
 create_swarm_cluster() {
 	
 	log "--- Creating nodes ..."
-	for n in {1..${NODE_COUNT}} ; do
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
 		create_machine node-${n}
 	done
 
@@ -130,7 +130,7 @@ create_swarm_cluster() {
 
 	if [[ ${MANAGER_COUNT} > 1 ]]; then
 		log "--- Joining manager modes ..."
-		for n in {2..${MANAGER_COUNT}} ; do
+		for n in $(eval echo "{2..${MANAGER_COUNT}}") ; do
 			name="node-${n}"
 			ip=$(docker-machine ip ${name})
 			docker swarm join --token $manager_token $leader_ip:2377
@@ -139,7 +139,7 @@ create_swarm_cluster() {
 	fi
 
 	log "--- Joining worker modes ..."
-	for n in {${WORKER_NODE_INDEX}..${NODE_COUNT}} ; do
+	for n in $(eval echo "{${WORKER_NODE_INDEX}..${NODE_COUNT}}") ; do
 		name="node-${n}"
 		ip=$(docker-machine ip ${name})
 		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${worker_token} ${leader_ip}:2377
@@ -154,14 +154,14 @@ create_swarm_cluster() {
 remove_swarm_cluster() {
 	clean_docker_env
 	log "--- Removing nodes ..."
-	for n in {1..${NODE_COUNT}} ; do
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
 		docker-machine rm node-${n} --force
 	done
 }
 
 start() {
 	log "--- Starting nodes ..."
-	for n in {1..${NODE_COUNT}} ; do
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
 		docker-machine start node-${n}
 	done
 	clean_docker_env
@@ -169,7 +169,7 @@ start() {
 
 stop() {
 	log "--- Stoping nodes ..."
-	for n in {1..${NODE_COUNT}} ; do
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
 		docker-machine stop node-${n}
 	done
 	clean_docker_env
