@@ -47,6 +47,7 @@ You could override #nodes by using environment variable:
 ```sh
     export MANAGER_COUNT=1
     export WORKER_COUNT=3
+    export DOCKER_MACHINE_DRIVER="virtualbox" # "xhyve per default"
 ```
 
 ## install-registry

@@ -2,7 +2,7 @@
 set -e
 # Docker machine Driver
 # virtualbox|xhyve
-DOCKER_MACHINE_DRIVER="xhyve"
+DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER:-"xhyve"}
 
 MANAGER_COUNT=${MANAGER_COUNT:-3}
 WORKER_COUNT=${WORKER_COUNT:-3}
@@ -57,6 +57,7 @@ show_config() {
 	echo " ${MANAGER_COUNT} #manager"
 	echo " ${WORKER_COUNT} #worker"
 	echo " ${NODE_COUNT} #node"
+	echo "Driver: ${DOCKER_MACHINE_DRIVER}"
 }
 
 clean_docker_env() {
@@ -109,6 +110,16 @@ create_machine() {
 
 create_swarm_cluster() {
 	
+	show_config
+
+	printf "[ CONFIRMATION ] Create cluster ? (y/n) : "
+
+	read command
+	if [ "$command" != "y" ]; then
+		echo "Aborting.";
+		exit 1;
+	fi
+
 	log "--- Creating nodes ..."
 	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
 		create_machine node-${n}
