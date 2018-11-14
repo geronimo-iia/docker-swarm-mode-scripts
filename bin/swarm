@@ -1,5 +1,5 @@
 #!/bin/bash
-
+set -e
 # Docker machine Driver
 # virtualbox|xhyve
 DOCKER_MACHINE_DRIVER="xhyve"
