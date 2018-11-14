@@ -6,6 +6,13 @@ Initial article was wrote by [Manuel Morejón][2].
 
 You could use it on nix plateform by changing DOCKER_MACHINE_DRIVER variable.
 
+Note:
+Due to a bug in v18.06.1-ce of boot2docker, you must export this variable in order to be able to create docker-machine:
+
+```sh
+export DOCKER_MACHINE_OPTS="--xhyve-boot2docker-url https://github.com/boot2docker/boot2docker/releases/download/v18.06.1-ce/boot2docker.iso"
+```
+
 ## prerequisites
 
 You will need Docker for Mac 1.12 or 17.x CE (or better) for this to work.

@@ -3,7 +3,7 @@ set -e
 # Docker machine Driver
 # virtualbox|xhyve
 DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER:-"xhyve"}
-
+DOCKER_MACHINE_OPTS=${DOCKER_MACHINE_OPTS:-""}
 MANAGER_COUNT=${MANAGER_COUNT:-3}
 WORKER_COUNT=${WORKER_COUNT:-3}
 
@@ -103,7 +103,7 @@ build_swarm_local_dns() {
 
 create_machine() {
   hostname=${1}
-  docker-machine create -d ${DOCKER_MACHINE_DRIVER} ${hostname}
+  docker-machine create -d ${DOCKER_MACHINE_DRIVER} ${hostname} ${DOCKER_MACHINE_OPTS}
   docker-machine ssh ${hostname} docker node update --label-add node.hostname=${hostname} ${hostname}
   echo $(docker-machine ip ${hostname})
 }
