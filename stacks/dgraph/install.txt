@@ -19,3 +19,6 @@ https://docs.dgraph.io/deploy#more-about-dgraph
 /admin/shutdown initiates a proper shutdown of the Alpha.
 /admin/export initiates a data export.
 By default the Alpha listens on localhost for admin actions (the loopback address only accessible from the same machine). The --bindall=true option binds to 0.0.0.0 and thus allows external connections.
+
+
+https://github.com/dgraph-io/dgraph/issues/1790
