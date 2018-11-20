@@ -70,6 +70,14 @@ show_config() {
 	echo "Driver: ${DOCKER_MACHINE_DRIVER}"
 }
 
+save_config() {
+	echo "export DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER}" > ${LOCAL_CONF_FILE}
+	echo "export DOCKER_MACHINE_OPTS=${DOCKER_MACHINE_OPTS}" >> ${LOCAL_CONF_FILE}
+	echo "export MANAGER_COUNT=${MANAGER_COUNT}" >> ${LOCAL_CONF_FILE}
+	echo "export WORKER_COUNT=${WORKER_COUNT}" >> ${LOCAL_CONF_FILE}
+	echo "Configuration saved in ${LOCAL_CONF_FILE}"
+}
+
 clean_docker_env() {
 	# Clean Docker client environment
 	log "--- Cleaning Docker client environment ..."
@@ -235,6 +243,7 @@ usage()
 {
   echo "Usage $0:"
   echo "--config : show cluster node configuration"
+  echo "--config-save : save cluster node configuration"
   echo "--create : create docker swarm cluster"
   echo "--remove : remove docker swarm cluster"
   echo "--start : start docker swarm cluster"
@@ -250,6 +259,7 @@ splash
 # read the options
 case "$1" in
 	--config)   show_config;;
+	--config-save) save_config;;
 	--create)   create_swarm_cluster;;
 	--remove)   remove_swarm_cluster;;
 	--start)    start;;
