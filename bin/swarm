@@ -248,7 +248,7 @@ install_registry() {
 	echo For your local machine to talk to the embedded registry you will need to add the keys.
 	echo On a mac, just run the following...
 	echo \$    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${CERTIFICATS_DIR}/registry.crt
-	echo \$    "sudo sh -c echo ${leader_ip} registry.swarm >> /etc/hosts"
+	echo \$    "sudo sh -c \"echo ${leader_ip} registry.swarm.local >> /etc/hosts\" "
 	echo Then restart docker for mac for the change to take effect.
 }
 
