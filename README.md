@@ -21,7 +21,7 @@ export XHYVE_BOOT2DOCKER_URL="https://github.com/boot2docker/boot2docker/release
 
 ## prerequisites
 
-You will need Docker for Mac 1.12 or 17.x CE (or better) for this to work.
+You will need Docker for Mac 1.12 or 18.x CE (or better) for this to work.
 
 You could use `./bin/install-docker` for Mac.
 
@@ -161,11 +161,11 @@ If you find the Docker Swarm Visualizer tool useful you can install it by
 executing :
 
 ```sh
-docker stack deploy --compose-file=../stacks/visualizer/visualizer.yml visualizer
+docker stack deploy --compose-file=./stacks/visualizer/visualizer.yml visualizer
 
 echo "To visualize your cluster..."
-echo "Open a browser to http://$(docker-machine ip node-1):8080/"
-echo "Open a browser to http://node-1.local:8080/"
+echo "Open a browser to http://$(docker-machine ip node-1):80/"
+echo "Open a browser to http://node-1.local:80/"
 ```
 
 This installs the visualizer to manager-1 where it can talk to the Docker socket,
