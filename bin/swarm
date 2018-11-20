@@ -68,6 +68,7 @@ show_config() {
 	echo " ${WORKER_COUNT} #worker"
 	echo " ${NODE_COUNT} #node"
 	echo "Driver: ${DOCKER_MACHINE_DRIVER}"
+	echo "Driver Option: ${DOCKER_MACHINE_OPTS}"
 }
 
 save_config() {
