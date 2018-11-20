@@ -12,6 +12,12 @@ Due to a bug in v18.06.1-ce of boot2docker, you must export this variable in ord
 ```sh
 export DOCKER_MACHINE_OPTS="--xhyve-boot2docker-url https://github.com/boot2docker/boot2docker/releases/download/v18.06.1-ce/boot2docker.iso"
 ```
+or
+
+```sh
+export XHYVE_BOOT2DOCKER_URL="https://github.com/boot2docker/boot2docker/releases/download/v18.06.1-ce/boot2docker.iso"
+```
+
 
 ## prerequisites
 

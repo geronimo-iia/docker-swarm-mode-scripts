@@ -122,8 +122,8 @@ build_swarm_local_dns() {
 
 create_machine() {
   hostname=${1}
-  docker-machine create -d ${DOCKER_MACHINE_DRIVER} ${hostname} ${DOCKER_MACHINE_OPTS}
-  docker-machine ssh ${hostname} docker node update --label-add node.hostname=${hostname} ${hostname}
+  cmdLine="docker-machine create -d ${DOCKER_MACHINE_DRIVER} ${hostname} ${DOCKER_MACHINE_OPTS}"
+  eval ${cmdLine}
   echo $(docker-machine ip ${hostname})
 }
 
@@ -144,9 +144,6 @@ create_swarm_cluster() {
 		create_machine node-${n}
 	done
 
-	log "--- Update local /etc/host ..."
-	build_swarm_local_dns
-
 	# Get IP from leader node
 	leader_name='node-1'
 	leader_ip=$(docker-machine ip ${leader_name})
@@ -163,7 +160,7 @@ create_swarm_cluster() {
 		for n in $(eval echo "{2..${MANAGER_COUNT}}") ; do
 			name="node-${n}"
 			ip=$(docker-machine ip ${name})
-			docker swarm join --token $manager_token $leader_ip:2377
+			#docker-machine ssh ${name} docker swarm join --token $manager_token $leader_ip:2377
 			docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${manager_token} ${leader_ip}:2377
 		done
 	fi
@@ -173,12 +170,21 @@ create_swarm_cluster() {
 		name="node-${n}"
 		ip=$(docker-machine ip ${name})
 		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${worker_token} ${leader_ip}:2377
-		docker-machine ssh ${name} docker node update --label-add node.hostname=${name} ${name}
 	done
-	
+
+	log "--- Labeling nodes ..."
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
+		name="node-${n}"
+		docker-machine ssh ${leader_name} docker node update --label-add node.hostname=${name} ${name}
+	done
+
+	log "--- Update local /etc/host ..."
+	build_swarm_local_dns
+
+
 	log "------------------------------------"
 	log "To connect to your cluster..."
-	log "eval $(docker-machine env ${leader_name})"
+	log "eval \$(docker-machine env ${leader_name})"
 }
 
 remove_swarm_cluster() {
@@ -211,32 +217,38 @@ find_leader() {
 
 
 install_registry() {
-	manager_ip=$(docker-machine ip manager-1)
+	leader_name='node-1'
+	leader_ip=$(docker-machine ip ${leader_name})
 
 	if [ ! -d ${CERTIFICATS_DIR} ]; then
 		log "create new certificats in ${CERTIFICATS_DIR}"
 		mkdir -p ${CERTIFICATS_DIR}
-		openssl req -newkey rsa:4096 -nodes -sha256 -keyout ${CERTIFICATS_DIR}/registry.key -x509 -days 365 -out ${CERTIFICATS_DIR}/registry.crt -subj "/C=US/ST=Illinois/L=Chicago/O=create-swarm/OU=script/CN=registry.swarm"
+		openssl req -newkey rsa:4096 -nodes -sha256 -keyout ${CERTIFICATS_DIR}/registry.key -x509 \
+			-days 365 -out ${CERTIFICATS_DIR}/registry.crt \
+			-subj "/C=US/ST=Illinois/L=Chicago/O=create-swarm/OU=script/CN=registry.swarm"
 	fi
 
 	log "adding certificats to swarn nodes"
-	for h in `manager-{1..${MANAGER_COUNT}} worker-{1..${WORKER_COUNT}}`; do
-		docker-machine ssh $h sudo mkdir -p /etc/docker/certs.d/registry.swarm:5000/
-		docker-machine scp ${CERTIFICATS_DIR}/registry.crt $h:registry.crt
-		docker-machine ssh $h sudo mv registry.crt /etc/docker/certs.d/registry.swarm:5000/ca.crt
-		docker-machine ssh $h "sudo sh -c \"echo ${manager_ip} registry.swarm >> /etc/hosts\""
+	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
+		name="node-${n}"
+		docker-machine ssh ${name} sudo mkdir -p /etc/docker/certs.d/registry.swarm:5000/
+		docker-machine scp ${CERTIFICATS_DIR}/registry.crt ${name}:registry.crt
+		docker-machine ssh ${name} sudo mv registry.crt /etc/docker/certs.d/registry.swarm:5000/ca.crt
+		docker-machine ssh ${name} "sudo sh -c \"echo ${leader_ip} registry.swarm >> /etc/hosts\""
 	done
 
 	log "create registry to leader"
-	docker-machine ssh manager-1 sudo mkdir -p /etc/registry
-	docker-machine scp -r ${CERTIFICATS_DIR} manager-1:.
-	docker-machine ssh manager-1 sudo mv certs /etc/registry/.
-	docker-machine ssh manager-1 docker run -d -p 5000:5000 -v registry:/var/lib/registry -v /etc/registry/certs:/certs -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/registry.crt -e REGISTRY_HTTP_TLS_KEY=/certs/registry.key registry
+	docker-machine ssh ${leader_name} sudo mkdir -p /etc/registry
+	docker-machine scp -r ${CERTIFICATS_DIR} ${leader_name}:.
+	docker-machine ssh ${leader_name} sudo mv certs /etc/registry/.
+	docker-machine ssh ${leader_name} docker run -d -p 5000:5000 -v registry:/var/lib/registry \
+		-v /etc/registry/certs:/certs -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/registry.crt \
+		-e REGISTRY_HTTP_TLS_KEY=/certs/registry.key registry
 
 	echo For your local machine to talk to the embedded registry you will need to add the keys.
 	echo On a mac, just run the following...
 	echo \$    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${CERTIFICATS_DIR}/registry.crt
-	echo \$    "sudo sh -c echo ${manager_ip} registry.swarm >> /etc/hosts"
+	echo \$    "sudo sh -c echo ${leader_ip} registry.swarm >> /etc/hosts"
 	echo Then restart docker for mac for the change to take effect.
 }
 
