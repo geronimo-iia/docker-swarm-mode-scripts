@@ -223,7 +223,7 @@ start() {
 stop() {
 	log "--- Stoping nodes ..."
 	for hostname in ${NODE_LIST}; do
-		docker-machine stop node-${n}
+		docker-machine stop ${hostname}
 	done
 	clean_docker_env
 }
