@@ -1,8 +1,11 @@
 #!/bin/bash
 
-eval $(docker-machine env node-1)
+DIRNAME=`dirname "$0"`
 
-docker stack deploy --compose-file=./dgraph.yml dgraph
+eval $(docker-machine env manager-1)
+
+
+docker stack deploy --compose-file=${DIRNAME}/dgraph.yml dgraph
 
 docker stack services dgraph
 
