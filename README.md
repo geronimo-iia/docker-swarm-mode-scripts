@@ -37,7 +37,8 @@ Clone this repository and execute `./bin/swarm`.
 
 ```sh
 Usage ./bin/swarm:
-    --config: show cluster node configuration
+    --config : show cluster node configuration
+    --config-save : save cluster node configuration
     --create : create docker swarm cluster
     --remove : remove docker swarm cluster
     --start : start docker swarm cluster
@@ -61,27 +62,36 @@ You could override #nodes by using environment variable:
     export MANAGER_COUNT=1
     export WORKER_COUNT=3
     export DOCKER_MACHINE_DRIVER="xhyve"
+    export XHYVE_BOOT2DOCKER_URL="..."
+    export DRIVER_OPTS="..."
 ```
 
 or better, into a '.swarm' file on your current path.
 
 ```sh
-    echo "export MANAGER_COUNT=1" > '.swarm'
-    echo "export WORKER_COUNT=3" >> '.swarm'
-    echo "export DOCKER_MACHINE_DRIVER=\"xhyve\"" >> '.swarm'
-
+    ./bin/swarm  --config-save
+    
     cat .swarm
     export MANAGER_COUNT=1
     export WORKER_COUNT=3
     export DOCKER_MACHINE_DRIVER="xhyve"
 
     ./bin/swarm --config
-
-    Swarm Cluster Configuration
-    1 #manager
-    3 #worker
-    4 #node
-    Driver: xhyve
+    
+    Swarm Cluster Configuration:
+        1 #manager
+        3 #worker
+        4 #node
+    Driver Configuration:
+        driver: xhyve
+        boot2docker: https://github.com/boot2docker/boot2docker/releases/download/v18.06.1-ce/boot2docker.iso
+        engine-opts:
+    Leader:
+        manager-1
+    Manager:
+        manager-1
+    Worker:
+        worker-1 worker-2 worker-3
 
 ```
 
@@ -107,11 +117,12 @@ Under `./stacks` you could find several starter stacks:
 
 - consul
 - visualizer
-- dockerdloud-hello-world
+- hello-world
+- dgraph
 
 In progress:
 
-- dgraph
+
 - monitoring (plain to use prometheus, etc...)
 - traefik as load balancer
 
@@ -122,8 +133,12 @@ The wish list:
 - faas
 - postgresql server
 - emqtt broker
+- [portaire](https://github.com/portainer/portainer)
+- [drone](https://github.com/drone/drone)
 
 ### consul
+
+TODO: need to update
 
 The [autopilot pattern][3] automates in code the repetitive and boring operational tasks of an application, including startup, shutdown, scaling, and recovery from anticipated failure conditions for reliability, ease of use, and improved productivity.
 
@@ -157,15 +172,11 @@ Then you can use the ingress gateway to connect to Consul. The service must be a
 
 ### visualizer
 
-If you find the Docker Swarm Visualizer tool useful you can install it by
+If you find the [Docker Swarm Visualizer][7] tool useful you can install it by
 executing :
 
 ```sh
-docker stack deploy --compose-file=./stacks/visualizer/visualizer.yml visualizer
-
-echo "To visualize your cluster..."
-echo "Open a browser to http://$(docker-machine ip node-1):80/"
-echo "Open a browser to http://node-1.local:80/"
+    ./stacks/visualizer/install.sh
 ```
 
 This installs the visualizer to manager-1 where it can talk to the Docker socket,
@@ -177,8 +188,27 @@ after execution.
 ### hello-world
 
 ```sh
-docker stack deploy --compose-file=stacks/dockercloud-hello-world/dockercloud-hello-world.yml dc-helloworld
+./stacks/hello-world/install.sh
 ```
+
+### dgraph
+
+```sh
+./stacks/dgraph/install.sh
+```
+
+
+
+## Links
+
+ - https://awesome-docker.netlify.com
+ - https://github.com/docker-flow/docker-flow-swarm-listener
+ - https://github.com/rancher/convoy
+ - https://github.com/minio/minio
+ - https://github.com/jeroenpeeters/docker-ssh
+ - https://github.com/atcol/docker-registry-ui
+ - https://github.com/instacart/ahab
+
 
 [1]: https://docs.docker.com/docker-for-mac/
 [2]: http://mmorejon.github.io/en/blog/docker-swarm-with-docker-machine-scripts/
@@ -186,3 +216,4 @@ docker stack deploy --compose-file=stacks/dockercloud-hello-world/dockercloud-he
 [4]: https://bhavik.io/2017/12/19/consul-with-docker-swarm-mode.html
 [5]: https://hub.docker.com/_/consul/
 [6]: https://github.com/sdelrio/consul
+[7]: https://github.com/dockersamples/docker-swarm-visualizer

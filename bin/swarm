@@ -7,19 +7,35 @@ if [ -e ${LOCAL_CONF_FILE} ]; then
 	source ${LOCAL_CONF_FILE}
 fi
 
-# Docker machine Driver (virtualbox|xhyve, ...)
+# Driver configuration
 DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER:-"xhyve"}
-DOCKER_MACHINE_OPTS=${DOCKER_MACHINE_OPTS:-""}
+XHYVE_BOOT2DOCKER_URL=${XHYVE_BOOT2DOCKER_URL:-"https://github.com/boot2docker/boot2docker/releases/download/v18.06.1-ce/boot2docker.iso"}
+DRIVER_OPTS=${DRIVER_OPTS:-""}
 
 # Number of manager
 MANAGER_COUNT=${MANAGER_COUNT:-3}
-
 # Number of worker
 WORKER_COUNT=${WORKER_COUNT:-3}
+
 
 # Compute Node count and worker node index
 (( NODE_COUNT=${MANAGER_COUNT} + ${WORKER_COUNT} ))
 (( WORKER_NODE_INDEX = ${MANAGER_COUNT} + 1 ))
+
+# Host list
+OTHER_MANAGER_LIST=""
+WORKER_LIST=""
+if [[ ${MANAGER_COUNT} > 1 ]]; then
+	for n in $(eval echo "{2..${MANAGER_COUNT}}") ; do
+		OTHER_MANAGER_LIST="${OTHER_MANAGER_LIST}manager-${n} "
+	done
+fi
+for n in $(eval echo "{1..${WORKER_COUNT}}") ; do
+	WORKER_LIST="${WORKER_LIST}worker-${n} "
+done
+LEADER="manager-1"
+MANAGER_LIST="${LEADER} ${OTHER_MANAGER_LIST}"
+NODE_LIST="${MANAGER_LIST} ${WORKER_LIST}"
 
 # Certificats directory used for docker registry
 CERTIFICATS_DIR=$(pwd)/certs
@@ -63,20 +79,43 @@ splash() {
 }
 
 show_config() {
-	echo "Swarm Cluster Configuration"
-	echo " ${MANAGER_COUNT} #manager"
-	echo " ${WORKER_COUNT} #worker"
-	echo " ${NODE_COUNT} #node"
-	echo "Driver: ${DOCKER_MACHINE_DRIVER}"
-	echo "Driver Option: ${DOCKER_MACHINE_OPTS}"
+	echo "Swarm Cluster Configuration:"
+	echo "  ${MANAGER_COUNT} #manager"
+	echo "  ${WORKER_COUNT} #worker"
+	echo "  ${NODE_COUNT} #node"
+	echo "Driver Configuration:"
+	echo "  driver: ${DOCKER_MACHINE_DRIVER}"
+	echo "  boot2docker: ${XHYVE_BOOT2DOCKER_URL}"
+	echo "  engine-opts: ${DRIVER_OPTS}"
+	echo "Leader:"
+	echo "  ${LEADER}"
+	echo "Manager:"
+	echo "  ${MANAGER_LIST}"
+	echo "Worker:"
+	echo "  ${WORKER_LIST}"
 }
 
 save_config() {
-	echo "export DOCKER_MACHINE_DRIVER=${DOCKER_MACHINE_DRIVER}" > ${LOCAL_CONF_FILE}
-	echo "export DOCKER_MACHINE_OPTS=${DOCKER_MACHINE_OPTS}" >> ${LOCAL_CONF_FILE}
+	echo "#Config " > ${LOCAL_CONF_FILE}
+	echo "export DOCKER_MACHINE_DRIVER=\"${DOCKER_MACHINE_DRIVER}\"" >> ${LOCAL_CONF_FILE}
+	echo "export XHYVE_BOOT2DOCKER_URL=\"${XHYVE_BOOT2DOCKER_URL}\"" >> ${LOCAL_CONF_FILE}
+	echo "export DRIVER_OPTS=\"${DRIVER_OPTS}\"" >> ${LOCAL_CONF_FILE}
 	echo "export MANAGER_COUNT=${MANAGER_COUNT}" >> ${LOCAL_CONF_FILE}
 	echo "export WORKER_COUNT=${WORKER_COUNT}" >> ${LOCAL_CONF_FILE}
+	
 	echo "Configuration saved in ${LOCAL_CONF_FILE}"
+}
+
+
+create_machine() {
+  hostname=${1}  
+  docker-machine create --driver ${DOCKER_MACHINE_DRIVER} ${hostname} ${DRIVER_OPTS}
+  echo $(docker-machine ip ${hostname})
+}
+
+remove_machine() {
+	hostname=${1} 
+	docker-machine rm ${hostname} --force
 }
 
 clean_docker_env() {
@@ -85,46 +124,36 @@ clean_docker_env() {
 	eval $(docker-machine env -u)
 } 
 
-# params hostname, default 'node-1'
 get_manager_token() {
-  hostname=${1:-node-1}
-  echo "$(docker-machine ssh ${hostname} docker swarm join-token -q manager)"
+  echo "$(docker-machine ssh ${LEADER} docker swarm join-token -q manager)"
 }
 
-# params hostname, default 'node-1'
 get_worker_token() {
-  hostname=${1:-node-1}
-  echo "$(docker-machine ssh ${hostname} docker swarm join-token -q worker)"
+  echo "$(docker-machine ssh ${LEADER} docker swarm join-token -q worker)"
 }
 
 # Adds the ip addresses of the docker-machines to your local "hosts" file.
-# params hostname
 # macos: dscacheutil -q host -a name ${hostname}
-update_docker_host() {
-	hostname=${1}
-	# clear existing docker.local entry from /etc/hosts
-	sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
-	# get ip of running machine
-	ip="$(docker-machine ip $hostname)"
-	# update /etc/hosts with docker machine ip
-	sudo /bin/bash -c "echo \"${ip}	$hostname.local\" >> /etc/hosts"
-	sudo /bin/bash -c "echo \"${ip}	swarm.local\" >> /etc/hosts"
-}
-
-build_swarm_local_dns() {
+create_swarm_local_dns() {
 	sudo sed -i "/swarm.local$/d" /etc/hosts
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
-		hostname="node-${n}"
+
+	for hostname in ${NODE_LIST} ; do
 		sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
-		update_docker_host ${hostname}
+		# clear existing docker.local entry from /etc/hosts
+		sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
+		# get ip of running machine
+		ip="$(docker-machine ip $hostname)"
+		# update /etc/hosts with docker machine ip
+		sudo /bin/bash -c "echo \"${ip}	$hostname.local\" >> /etc/hosts"
+		sudo /bin/bash -c "echo \"${ip}	swarm.local\" >> /etc/hosts"
 	done
 }
 
-create_machine() {
-  hostname=${1}
-  cmdLine="docker-machine create -d ${DOCKER_MACHINE_DRIVER} ${hostname} ${DOCKER_MACHINE_OPTS}"
-  eval ${cmdLine}
-  echo $(docker-machine ip ${hostname})
+remove_swarm_local_dns() {
+	sudo sed -i "/swarm.local$/d" /etc/hosts
+	for hostname in ${NODE_LIST} ; do
+		sudo sed -i "/"${hostname}"\.local$/d" /etc/hosts
+	done
 }
 
 create_swarm_cluster() {
@@ -132,7 +161,6 @@ create_swarm_cluster() {
 	show_config
 
 	printf "[ CONFIRMATION ] Create cluster ? (y/n) : "
-
 	read command
 	if [ "$command" != "y" ]; then
 		echo "Aborting.";
@@ -140,72 +168,61 @@ create_swarm_cluster() {
 	fi
 
 	log "--- Creating nodes ..."
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
-		create_machine node-${n}
+	for hostname in ${NODE_LIST}; do
+		create_machine ${hostname}
 	done
 
-	# Get IP from leader node
-	leader_name='node-1'
-	leader_ip=$(docker-machine ip ${leader_name})
-
 	log "--- Initializing Swarm mode ..."
-	docker-machine ssh ${leader_name} docker swarm init --listen-addr ${leader_ip} --advertise-addr ${leader_ip}
+	leader_ip=$(docker-machine ip ${LEADER})
+	log " ${LEADER} is leader manager modes ..."
+	docker-machine ssh ${LEADER} docker swarm init --listen-addr ${leader_ip} --advertise-addr ${leader_ip}
+	manager_token=$(get_manager_token)
+	worker_token=$(get_worker_token)
 
-	# Swarm tokens
-	manager_token=$(get_manager_token ${leader_name})
-	worker_token=$(get_worker_token ${leader_name})
-
-	if [[ ${MANAGER_COUNT} > 1 ]]; then
-		log "--- Joining manager modes ..."
-		for n in $(eval echo "{2..${MANAGER_COUNT}}") ; do
-			name="node-${n}"
-			ip=$(docker-machine ip ${name})
-			#docker-machine ssh ${name} docker swarm join --token $manager_token $leader_ip:2377
-			docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${manager_token} ${leader_ip}:2377
-		done
-	fi
+	for hostname in ${OTHER_MANAGER_LIST}; do
+		log " ${hostname} joining manager modes ..."
+		ip=$(docker-machine ip ${hostname})
+		docker-machine ssh ${hostname} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${manager_token} ${leader_ip}:2377
+	done
 
 	log "--- Joining worker modes ..."
-	for n in $(eval echo "{${WORKER_NODE_INDEX}..${NODE_COUNT}}") ; do
-		name="node-${n}"
-		ip=$(docker-machine ip ${name})
-		docker-machine ssh ${name} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${worker_token} ${leader_ip}:2377
+	for hostname in ${WORKER_LIST} ; do
+		log " ${hostname} joining worker modes ..."
+		ip=$(docker-machine ip ${hostname})
+		docker-machine ssh ${hostname} docker swarm join --listen-addr ${ip} --advertise-addr ${ip} --token ${worker_token} ${leader_ip}:2377
 	done
 
 	log "--- Labeling nodes ..."
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
-		name="node-${n}"
-		docker-machine ssh ${leader_name} docker node update --label-add node.hostname=${name} ${name}
+	for hostname in ${NODE_LIST}; do
+		docker-machine ssh ${LEADER} docker node update --label-add node.hostname=${hostname} ${hostname}
 	done
-
 	log "--- Update local /etc/host ..."
-	build_swarm_local_dns
+	create_swarm_local_dns
 
-
-	log "------------------------------------"
-	log "To connect to your cluster..."
-	log "eval \$(docker-machine env ${leader_name})"
+	eval $(docker-machine env ${LEADER})
 }
 
 remove_swarm_cluster() {
 	clean_docker_env
+	remove_swarm_local_dns
 	log "--- Removing nodes ..."
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
-		docker-machine rm node-${n} --force
+	for hostname in ${NODE_LIST}; do
+		remove_machine ${hostname}
 	done
 }
 
 start() {
 	log "--- Starting nodes ..."
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
-		docker-machine start node-${n}
-	done
 	clean_docker_env
+	for hostname in ${NODE_LIST}; do
+		docker-machine start ${hostname}
+	done
+	$(docker-machine env ${LEADER})
 }
 
 stop() {
 	log "--- Stoping nodes ..."
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
+	for hostname in ${NODE_LIST}; do
 		docker-machine stop node-${n}
 	done
 	clean_docker_env
@@ -217,8 +234,8 @@ find_leader() {
 
 
 install_registry() {
-	leader_name='node-1'
-	leader_ip=$(docker-machine ip ${leader_name})
+	LEADER='node-1'
+	leader_ip=$(docker-machine ip ${LEADER})
 
 	if [ ! -d ${CERTIFICATS_DIR} ]; then
 		log "create new certificats in ${CERTIFICATS_DIR}"
@@ -229,27 +246,24 @@ install_registry() {
 	fi
 
 	log "adding certificats to swarn nodes"
-	for n in $(eval echo "{1..${NODE_COUNT}}") ; do
-		name="node-${n}"
-		docker-machine ssh ${name} sudo mkdir -p /etc/docker/certs.d/registry.swarm:5000/
-		docker-machine scp ${CERTIFICATS_DIR}/registry.crt ${name}:registry.crt
-		docker-machine ssh ${name} sudo mv registry.crt /etc/docker/certs.d/registry.swarm:5000/ca.crt
-		docker-machine ssh ${name} "sudo sh -c \"echo ${leader_ip} registry.swarm >> /etc/hosts\""
+	for hostname in ${NODE_LIST}; do
+		docker-machine ssh ${hostname} sudo mkdir -p /etc/docker/certs.d/registry.swarm:5000/
+		docker-machine scp ${CERTIFICATS_DIR}/registry.crt ${hostname}:registry.crt
+		docker-machine ssh ${hostname} sudo mv registry.crt /etc/docker/certs.d/registry.swarm:5000/ca.crt
+		docker-machine ssh ${hostname} "sudo sh -c \"echo ${leader_ip} registry.swarm >> /etc/hosts\""
 	done
 
 	log "create registry to leader"
-	docker-machine ssh ${leader_name} sudo mkdir -p /etc/registry
-	docker-machine scp -r ${CERTIFICATS_DIR} ${leader_name}:.
-	docker-machine ssh ${leader_name} sudo mv certs /etc/registry/.
-	docker-machine ssh ${leader_name} docker run -d -p 5000:5000 -v registry:/var/lib/registry \
+	docker-machine ssh ${LEADER} sudo mkdir -p /etc/registry
+	docker-machine scp -r ${CERTIFICATS_DIR} ${LEADER}:.
+	docker-machine ssh ${LEADER} sudo mv certs /etc/registry/.
+	docker-machine ssh ${LEADER} docker run -d -p 5000:5000 -v registry:/var/lib/registry \
 		-v /etc/registry/certs:/certs -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/registry.crt \
 		-e REGISTRY_HTTP_TLS_KEY=/certs/registry.key registry
 
-	echo For your local machine to talk to the embedded registry you will need to add the keys.
-	echo On a mac, just run the following...
-	echo \$    sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${CERTIFICATS_DIR}/registry.crt
-	echo \$    "sudo sh -c \"echo ${leader_ip} registry.swarm.local >> /etc/hosts\" "
-	echo Then restart docker for mac for the change to take effect.
+	sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain ${CERTIFICATS_DIR}/registry.crt
+	sudo sh -c "echo ${leader_ip} registry.swarm.local >> /etc/hosts"
+	
 }
 
 usage()

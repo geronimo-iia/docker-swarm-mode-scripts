@@ -2,5 +2,7 @@
 # Installation of docker tools
 
 brew install docker docker-compose docker-machine docker-machine-driver-xhyve docker-machine-nfs xhyve
+
+#post install xhyve
 sudo chown root:wheel $(brew --prefix)/opt/docker-machine-driver-xhyve/bin/docker-machine-driver-xhyve
 sudo chmod u+s $(brew --prefix)/opt/docker-machine-driver-xhyve/bin/docker-machine-driver-xhyve
