@@ -214,9 +214,8 @@ remove_swarm_cluster() {
 start() {
 	log "--- Starting nodes ..."
 	clean_docker_env
-	for hostname in ${NODE_LIST}; do
-		docker-machine start ${hostname}
-	done
+	docker-machine start ${MANAGER_LIST}
+	docker-machine start ${WORKER_LIST}
 	$(docker-machine env ${LEADER})
 }
 
